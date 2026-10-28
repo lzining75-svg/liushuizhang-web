@@ -30,7 +30,7 @@ return `<header class="topbar"><div class="header-title">${subpage?`<button clas
 function render(){applyTheme();if(loadError){$('#app').innerHTML=`<div class="error-page"><h1>本地账本读取失败</h1><p>原始数据已保留，请先导出原文件，或从之前的备份恢复。</p><button class="button secondary" data-action="export-original">导出原文件</button><button class="button primary" data-action="import">导入备份</button></div>`;return;}
 const tab=currentTab(),{page}=route();let content;switch(page){case 'book':content=chatPage();break;case 'stats':content=statsPage();break;case 'budgets':content=budgetsPage();break;case 'settings':content=settingsPage();break;case 'categories':content=categoriesPage();break;case 'book-settings':content=bookSettingsPage();break;case 'trash':content=trashPage();break;case 'data':content=dataPage();break;case 'entries':content=entriesPage();break;default:content=booksPage();}
 const nav=mobile=>navs.map(([id,label,name])=>`<button class="${mobile?'':'nav-item '}${tab===id?'active':''}" data-nav="${id}" ${tab===id?'aria-current="page"':''}>${icon(name)}<span>${label}</span></button>`).join('');
-$('#app').innerHTML=`<div class="app-shell"><aside class="sidebar"><div class="brand"><img src="./assets/icon-192.png" alt="流水账图标"><div><strong>流水账</strong><small>DAILY NOTES</small></div></div><nav class="nav-list" aria-label="主导航">${nav(false)}</nav><div class="sidebar-bottom"><button class="profile-mini" data-nav="settings">${avatar(state.preferences.avatar)}<span>${esc(state.preferences.nickname)}<small>我的生活，慢慢记录</small></span></button></div></aside><main class="workspace">${header()}<div class="content" id="content">${content}</div><footer class="global-footer"><nav class="mobile-tabs" aria-label="主导航">${nav(true)}</nav><div class="totals">${[['本日支出','day'],['本月支出','month'],['本年支出','year']].map(([label,kind])=>`<div class="total-cell"><small>${label}</small><strong class="money">${money(total(filtered(state.entries,intervalFor(kind))))}</strong></div>`).join('')}</div></footer></main></div>`;
+$('#app').innerHTML=`<div class="app-shell"><aside class="sidebar"><div class="brand"><img src="./assets/icon-192.png" alt="流水账图标"><div><strong>流水账</strong><small>DAILY NOTES</small></div></div><nav class="nav-list" aria-label="主导航">${nav(false)}</nav><div class="sidebar-bottom"><button class="profile-mini" data-nav="settings">${avatar(state.preferences.avatar)}<span>${esc(state.preferences.nickname)}<small>我的生活，慢慢记录</small></span></button></div></aside><main class="workspace">${header()}<div class="content${page==='book'?' chat-content':''}" id="content">${content}</div><footer class="global-footer"><nav class="mobile-tabs" aria-label="主导航">${nav(true)}</nav><div class="totals">${[['本日支出','day'],['本月支出','month'],['本年支出','year']].map(([label,kind])=>`<div class="total-cell"><small>${label}</small><strong class="money">${money(total(filtered(state.entries,intervalFor(kind))))}</strong></div>`).join('')}</div></footer></main></div>`;
 if(page==='book'){const list=$('.chat-scroll');if(list)list.scrollTop=list.scrollHeight;}if(page==='categories')setupDrag();scheduleKeyboardLayout();}
 function booksPage(){return `<section class="page"><div class="books-list">${[...state.books].sort((a,b)=>a.id===DAILY_ID?-1:b.id===DAILY_ID?1:0).map(b=>{const entries=filtered(state.entries,null,b.id).sort((a,b)=>b.date.localeCompare(a.date)),last=entries[0];return `<button class="book-row ${b.id===DAILY_ID?'pinned':''}" data-nav="book/${esc(b.id)}">${bookPhoto(b)}<div class="book-copy"><h2>${esc(b.name)}</h2><p>${last?esc(last.title):'暂无支出'}</p></div><div class="book-meta"><small>${last?dateLabel(last.date):`${entries.length} 笔`}</small>${last?`<span class="money">${money(last.cents)}</span>`:''}</div><span class="book-arrow">${icon('chevron')}</span></button>`;}).join('')}</div>${state.entries.length?`<div class="page-kicker"><span>最近支出</span><span>${filtered(state.entries,null).length} 笔记录</span></div><div class="card">${filtered(state.entries,null).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,4).map(entryRow).join('')}</div>`:''}</section>`;}
 function chatPage(){const book=state.books.find(b=>b.id===route().id);if(!book)return empty('账本不存在','book');const entries=filtered(state.entries,null,book.id).sort((a,b)=>a.date.localeCompare(b.date));let previous='';return `<section class="page chat-page"><div class="chat-scroll">${entries.length?entries.map(e=>{const key=dayStart(e.date).getTime(),heading=key!==previous?`<div class="chat-date">${dateLabel(e.date,true)}</div>`:'';previous=key;return `${heading}<div class="message-row"><button class="bubble" data-action="edit-entry" data-id="${esc(e.id)}"><div class="bubble-title"><span>${esc(e.title)}</span><strong class="money">${money(e.cents)}</strong></div><div class="bubble-meta"><span>${esc(e.category)}</span><span>${timeLabel(e.date)}</span></div></button>${avatar(state.preferences.avatar,'message-avatar')}</div>`;}).join(''):empty('暂无支出','chat')}</div><form id="composer" class="composer"><label class="sr-only" for="message">记一笔支出</label><input id="message" name="message" placeholder="午饭28" autocomplete="off" maxlength="2000" required><button type="submit" aria-label="发送记账">${icon('send')}</button></form></section>`;}
@@ -82,6 +82,8 @@ matchMedia('(prefers-color-scheme:dark)').addEventListener('change',applyTheme);
 let baseHeight=window.visualViewport?.height||window.innerHeight;
 let baseWidth=window.innerWidth;
 let keyboardFrame=0;
+let keyboardWasOpen=false;
+let chatFocusAtEnd=false;
 function scheduleKeyboardLayout(){
     if(keyboardFrame)return;
     keyboardFrame=requestAnimationFrame(()=>{keyboardFrame=0;keyboardSize();});
@@ -93,20 +95,25 @@ function keyboardSize(){
     const scale=viewport?.scale||1;
     const typing=!!document.activeElement?.matches('input:not([type="checkbox"]):not([type="file"]):not([type="button"]),textarea,select,[contenteditable="true"]');
     if(Math.abs(window.innerWidth-baseWidth)>1){baseWidth=window.innerWidth;baseHeight=layoutHeight;}
-    if(!typing&&Math.abs(scale-1)<0.05)baseHeight=Math.max(layoutHeight,height);
-    const layout=keyboardViewport({baselineHeight:baseHeight,layoutHeight,visualHeight:height,offsetTop:viewport?.offsetTop||0,scale,editing:typing,mobile:matchMedia('(pointer:coarse)').matches||window.innerWidth<=650});
+    if(!typing&&!keyboardWasOpen&&Math.abs(scale-1)<0.05)baseHeight=Math.max(layoutHeight,height);
+    const layout=keyboardViewport({baselineHeight:baseHeight,layoutHeight,visualHeight:height,offsetTop:viewport?.offsetTop||0,scale,editing:typing,mobile:matchMedia('(pointer:coarse)').matches||window.innerWidth<=650,wasOpen:keyboardWasOpen});
+    const chat=document.querySelector('.chat-scroll');
+    const followChat=chat&&(chat.scrollHeight-chat.clientHeight-chat.scrollTop<32||(!keyboardWasOpen&&chatFocusAtEnd));
+    keyboardWasOpen=layout.open;
     document.body.classList.toggle('keyboard-open',layout.open);
     document.documentElement.style.setProperty('--visual-height',layout.height+'px');
     document.documentElement.style.setProperty('--keyboard-inset',layout.bottom+'px');
-    const workspace=document.querySelector('.workspace');
-    if(layout.open&&!activeDialog)workspace?.style.setProperty('height',layout.height+'px');
-    else workspace?.style.removeProperty('height');
+    // Follow the visible frame, including Safari's keyboard-induced pan.
+    // Resizing only .workspace leaves a full-height shell that Safari can scroll.
+    document.documentElement.style.setProperty('--app-height',layout.open&&!activeDialog?layout.height+'px':'100dvh');
+    document.documentElement.style.setProperty('--app-top',layout.open&&!activeDialog?layout.top+'px':'0px');
+    if(layout.open&&!activeDialog&&followChat)chat.scrollTop=chat.scrollHeight;
 }
 window.visualViewport?.addEventListener('resize',scheduleKeyboardLayout);
 window.visualViewport?.addEventListener('scroll',scheduleKeyboardLayout);
 window.addEventListener('resize',scheduleKeyboardLayout);
 window.addEventListener('orientationchange',scheduleKeyboardLayout);
-document.addEventListener('focusin',()=>{scheduleKeyboardLayout();setTimeout(scheduleKeyboardLayout,350);});
+document.addEventListener('focusin',e=>{const chat=document.querySelector('.chat-scroll');chatFocusAtEnd=e.target.id==='message'&&!!chat&&chat.scrollHeight-chat.clientHeight-chat.scrollTop<32;scheduleKeyboardLayout();setTimeout(scheduleKeyboardLayout,350);});
 document.addEventListener('focusout',()=>setTimeout(scheduleKeyboardLayout,150));
 if('serviceWorker'in navigator&&location.protocol!=='file:')navigator.serviceWorker.register('./sw.js',{updateViaCache:'none'}).catch(()=>{});
 setInterval(()=>{if(!activeDialog&&!['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName))render();},60000);

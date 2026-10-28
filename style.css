@@ -7,7 +7,18 @@
 [hidden]{display:none!important}
 
 /* Keep mobile text controls at readable size to avoid iOS focus zoom. */
-html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%;height:100%;overflow:hidden;overscroll-behavior:none}
+body,#app{height:100%;overflow:hidden;overscroll-behavior:none}
+.content{min-height:0}
+.content.chat-content{display:flex;flex-direction:column;overflow:clip}
+.chat-page{flex:1;min-height:0;height:auto;width:100%;margin:0 auto}
+.chat-scroll{min-height:0;overflow-x:hidden;overscroll-behavior:contain}
+.composer{flex-shrink:0}
+
+@media (pointer:coarse),(max-width:650px){
+  #app{position:fixed;inset-inline:0;top:var(--app-top,0px);height:var(--app-height,100dvh)}
+  .app-shell,.workspace{height:100%}
+}
 @media (pointer:coarse),(max-width:650px){
   input,textarea,select,.appearance-select,.form-field input[type=file]{font-size:16px}
   .sheet{inset-inline:0;box-sizing:border-box;overflow-x:hidden;overflow-y:auto}
