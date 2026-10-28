@@ -14,6 +14,13 @@ body,#app{height:100%;overflow:hidden;overscroll-behavior:none}
 .chat-page{flex:1;min-height:0;height:auto;width:100%;margin:0 auto}
 .chat-scroll{min-height:0;overflow-x:hidden;overscroll-behavior:contain}
 .composer{flex-shrink:0}
+.icon-button{padding:0;line-height:0}
+.form-field{min-width:0;max-width:100%}
+.form-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+/* Safari date controls otherwise retain their intrinsic width in flex labels. */
+.form-field input[type="datetime-local"]{display:block;appearance:none;-webkit-appearance:none;min-inline-size:0;inline-size:100%;max-inline-size:100%;min-height:46px}
+.form-field input[type="datetime-local"]::-webkit-date-and-time-value{min-width:0;text-align:left}
+.form-field input[type="datetime-local"]::-webkit-datetime-edit{min-width:0;padding:0}
 
 @media (pointer:coarse),(max-width:650px){
   #app{position:fixed;inset-inline:0;top:var(--app-top,0px);height:var(--app-height,100dvh)}
